@@ -14,13 +14,259 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      firm_branding: {
+        Row: {
+          accent_color_hex: string | null
+          brand_display_name: string
+          branding_name: string
+          created_at: string
+          default_font_family: string
+          default_footer_text: string | null
+          default_reply_to_email: string | null
+          default_signatory_name: string | null
+          default_signatory_title: string | null
+          firm_id: string
+          id: string
+          primary_color_hex: string
+          primary_logo_path: string | null
+          secondary_color_hex: string
+          status: string
+          tagline: string | null
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          accent_color_hex?: string | null
+          brand_display_name: string
+          branding_name: string
+          created_at?: string
+          default_font_family?: string
+          default_footer_text?: string | null
+          default_reply_to_email?: string | null
+          default_signatory_name?: string | null
+          default_signatory_title?: string | null
+          firm_id: string
+          id?: string
+          primary_color_hex?: string
+          primary_logo_path?: string | null
+          secondary_color_hex?: string
+          status?: string
+          tagline?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Update: {
+          accent_color_hex?: string | null
+          brand_display_name?: string
+          branding_name?: string
+          created_at?: string
+          default_font_family?: string
+          default_footer_text?: string | null
+          default_reply_to_email?: string | null
+          default_signatory_name?: string | null
+          default_signatory_title?: string | null
+          firm_id?: string
+          id?: string
+          primary_color_hex?: string
+          primary_logo_path?: string | null
+          secondary_color_hex?: string
+          status?: string
+          tagline?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_branding_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firm_memberships: {
+        Row: {
+          access_end_date: string | null
+          access_start_date: string
+          created_at: string
+          firm_id: string
+          id: string
+          is_primary_firm: boolean
+          reports_to_user_id: string | null
+          role_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_end_date?: string | null
+          access_start_date?: string
+          created_at?: string
+          firm_id: string
+          id?: string
+          is_primary_firm?: boolean
+          reports_to_user_id?: string | null
+          role_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_end_date?: string | null
+          access_start_date?: string
+          created_at?: string
+          firm_id?: string
+          id?: string
+          is_primary_firm?: boolean
+          reports_to_user_id?: string | null
+          role_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_memberships_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "firm_memberships_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firms: {
+        Row: {
+          country_code: string
+          created_at: string
+          date_format: string
+          default_currency: string
+          default_sender_email: string | null
+          default_sender_name: string | null
+          display_name: string
+          firm_code: string
+          general_email: string | null
+          id: string
+          legal_name: string
+          primary_state_code: string | null
+          status: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          country_code?: string
+          created_at?: string
+          date_format?: string
+          default_currency?: string
+          default_sender_email?: string | null
+          default_sender_name?: string | null
+          display_name: string
+          firm_code: string
+          general_email?: string | null
+          id?: string
+          legal_name: string
+          primary_state_code?: string | null
+          status: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string
+          created_at?: string
+          date_format?: string
+          default_currency?: string
+          default_sender_email?: string | null
+          default_sender_name?: string | null
+          display_name?: string
+          firm_code?: string
+          general_email?: string | null
+          id?: string
+          legal_name?: string
+          primary_state_code?: string | null
+          status?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          first_name: string | null
+          job_title: string | null
+          last_name: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          first_name?: string | null
+          job_title?: string | null
+          last_name?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          first_name?: string | null
+          job_title?: string | null
+          last_name?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      roles: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          role_level: number
+          status: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          role_level: number
+          status?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          role_level?: number
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      bootstrap_first_admin: { Args: { _firm_code: string }; Returns: string }
+      user_active_role_id: { Args: never; Returns: string }
+      user_has_active_firm: { Args: { _firm_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

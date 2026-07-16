@@ -9,38 +9,158 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWorkRouteImport } from './routes/_authenticated/work'
+import { Route as AuthenticatedToolsRouteImport } from './routes/_authenticated/tools'
+import { Route as AuthenticatedPlaybooksRouteImport } from './routes/_authenticated/playbooks'
+import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
+import { Route as AuthenticatedAdministrationRouteImport } from './routes/_authenticated/administration'
 
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWorkRoute = AuthenticatedWorkRouteImport.update({
+  id: '/work',
+  path: '/work',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedToolsRoute = AuthenticatedToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPlaybooksRoute = AuthenticatedPlaybooksRouteImport.update({
+  id: '/playbooks',
+  path: '/playbooks',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdministrationRoute =
+  AuthenticatedAdministrationRouteImport.update({
+    id: '/administration',
+    path: '/administration',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/administration': typeof AuthenticatedAdministrationRoute
+  '/clients': typeof AuthenticatedClientsRoute
+  '/playbooks': typeof AuthenticatedPlaybooksRoute
+  '/tools': typeof AuthenticatedToolsRoute
+  '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/administration': typeof AuthenticatedAdministrationRoute
+  '/clients': typeof AuthenticatedClientsRoute
+  '/playbooks': typeof AuthenticatedPlaybooksRoute
+  '/tools': typeof AuthenticatedToolsRoute
+  '/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
+  '/_authenticated/clients': typeof AuthenticatedClientsRoute
+  '/_authenticated/playbooks': typeof AuthenticatedPlaybooksRoute
+  '/_authenticated/tools': typeof AuthenticatedToolsRoute
+  '/_authenticated/work': typeof AuthenticatedWorkRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/administration'
+    | '/clients'
+    | '/playbooks'
+    | '/tools'
+    | '/work'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/administration'
+    | '/clients'
+    | '/playbooks'
+    | '/tools'
+    | '/work'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/administration'
+    | '/_authenticated/clients'
+    | '/_authenticated/playbooks'
+    | '/_authenticated/tools'
+    | '/_authenticated/work'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +168,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/work': {
+      id: '/_authenticated/work'
+      path: '/work'
+      fullPath: '/work'
+      preLoaderRoute: typeof AuthenticatedWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tools': {
+      id: '/_authenticated/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof AuthenticatedToolsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/playbooks': {
+      id: '/_authenticated/playbooks'
+      path: '/playbooks'
+      fullPath: '/playbooks'
+      preLoaderRoute: typeof AuthenticatedPlaybooksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients': {
+      id: '/_authenticated/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AuthenticatedClientsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/administration': {
+      id: '/_authenticated/administration'
+      path: '/administration'
+      fullPath: '/administration'
+      preLoaderRoute: typeof AuthenticatedAdministrationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdministrationRoute: typeof AuthenticatedAdministrationRoute
+  AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
+  AuthenticatedPlaybooksRoute: typeof AuthenticatedPlaybooksRoute
+  AuthenticatedToolsRoute: typeof AuthenticatedToolsRoute
+  AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdministrationRoute: AuthenticatedAdministrationRoute,
+  AuthenticatedClientsRoute: AuthenticatedClientsRoute,
+  AuthenticatedPlaybooksRoute: AuthenticatedPlaybooksRoute,
+  AuthenticatedToolsRoute: AuthenticatedToolsRoute,
+  AuthenticatedWorkRoute: AuthenticatedWorkRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
