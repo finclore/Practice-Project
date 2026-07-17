@@ -1,12 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DeskBody, DeskHeader, EmptyState } from "@/components/desk";
-import { useReadySession, hasRole } from "@/lib/session-context";
+import { DeskBody, DeskHeader } from "@/components/desk";
+import { RoleGuard } from "@/components/role-guard";
+import { useReadySession } from "@/lib/session-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authenticated/administration")({
   head: () => ({ meta: [{ title: "Administration · Finclore Practice" }] }),
-  component: AdministrationDesk,
+  component: AdministrationRoute,
 });
+
+const ALLOWED_ROLES = ["FIRM_ADMIN"] as const;
+
+function AdministrationRoute() {
+  return (
+    <RoleGuard allow={[...ALLOWED_ROLES]}>
+      <AdministrationDesk />
+    </RoleGuard>
+  );
+}
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -19,20 +30,6 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 function AdministrationDesk() {
   const { firm, branding, profile, role } = useReadySession();
-
-  if (!hasRole(role, ["FIRM_ADMIN"])) {
-    return (
-      <>
-        <DeskHeader title="Administration" question="Administration" />
-        <DeskBody>
-          <EmptyState
-            title="Restricted"
-            description="Administration is available only to Firm Administrators."
-          />
-        </DeskBody>
-      </>
-    );
-  }
 
   return (
     <>
