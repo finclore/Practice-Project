@@ -20,6 +20,7 @@ import { Route as AuthenticatedEngagementsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedAdministrationIndexRouteImport } from './routes/_authenticated/administration.index'
 import { Route as AuthenticatedClientsClientIdRouteImport } from './routes/_authenticated/clients.$clientId'
+import { Route as AuthenticatedAdministrationServicesRouteImport } from './routes/_authenticated/administration.services'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -78,6 +79,12 @@ const AuthenticatedClientsClientIdRoute =
     path: '/$clientId',
     getParentRoute: () => AuthenticatedClientsRoute,
   } as any)
+const AuthenticatedAdministrationServicesRoute =
+  AuthenticatedAdministrationServicesRouteImport.update({
+    id: '/administration/services',
+    path: '/administration/services',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/playbooks': typeof AuthenticatedPlaybooksRoute
   '/tools': typeof AuthenticatedToolsRoute
   '/work': typeof AuthenticatedWorkRoute
+  '/administration/services': typeof AuthenticatedAdministrationServicesRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
   '/administration/': typeof AuthenticatedAdministrationIndexRoute
 }
@@ -100,6 +108,7 @@ export interface FileRoutesByTo {
   '/playbooks': typeof AuthenticatedPlaybooksRoute
   '/tools': typeof AuthenticatedToolsRoute
   '/work': typeof AuthenticatedWorkRoute
+  '/administration/services': typeof AuthenticatedAdministrationServicesRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
   '/administration': typeof AuthenticatedAdministrationIndexRoute
 }
@@ -114,6 +123,7 @@ export interface FileRoutesById {
   '/_authenticated/playbooks': typeof AuthenticatedPlaybooksRoute
   '/_authenticated/tools': typeof AuthenticatedToolsRoute
   '/_authenticated/work': typeof AuthenticatedWorkRoute
+  '/_authenticated/administration/services': typeof AuthenticatedAdministrationServicesRoute
   '/_authenticated/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
   '/_authenticated/administration/': typeof AuthenticatedAdministrationIndexRoute
 }
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/playbooks'
     | '/tools'
     | '/work'
+    | '/administration/services'
     | '/clients/$clientId'
     | '/administration/'
   fileRoutesByTo: FileRoutesByTo
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/playbooks'
     | '/tools'
     | '/work'
+    | '/administration/services'
     | '/clients/$clientId'
     | '/administration'
   id:
@@ -153,6 +165,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playbooks'
     | '/_authenticated/tools'
     | '/_authenticated/work'
+    | '/_authenticated/administration/services'
     | '/_authenticated/clients/$clientId'
     | '/_authenticated/administration/'
   fileRoutesById: FileRoutesById
@@ -243,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientsClientIdRouteImport
       parentRoute: typeof AuthenticatedClientsRoute
     }
+    '/_authenticated/administration/services': {
+      id: '/_authenticated/administration/services'
+      path: '/administration/services'
+      fullPath: '/administration/services'
+      preLoaderRoute: typeof AuthenticatedAdministrationServicesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -263,6 +283,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaybooksRoute: typeof AuthenticatedPlaybooksRoute
   AuthenticatedToolsRoute: typeof AuthenticatedToolsRoute
   AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
+  AuthenticatedAdministrationServicesRoute: typeof AuthenticatedAdministrationServicesRoute
   AuthenticatedAdministrationIndexRoute: typeof AuthenticatedAdministrationIndexRoute
 }
 
@@ -272,6 +293,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPlaybooksRoute: AuthenticatedPlaybooksRoute,
   AuthenticatedToolsRoute: AuthenticatedToolsRoute,
   AuthenticatedWorkRoute: AuthenticatedWorkRoute,
+  AuthenticatedAdministrationServicesRoute:
+    AuthenticatedAdministrationServicesRoute,
   AuthenticatedAdministrationIndexRoute: AuthenticatedAdministrationIndexRoute,
 }
 
