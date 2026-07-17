@@ -1,125 +1,326 @@
 
-# Kernel Foundation — Technical Audit
+# Milestone 2 · Slice 1 — Engagements Foundation
 
-## Executive Verdict
-**Fail** — one Critical (bootstrap privilege escalation) plus several High findings that violate the approved slice's write-restriction and route-authorization requirements. Corrections are small; the schema and RLS shape are otherwise sound.
+## 1. Scope
 
----
+**In scope (v1 slice):**
+- Minimal `clients` reference table (firm-scoped) — smallest set of fields required to attach an engagement.
+- Minimal `services` catalog table (firm-scoped) — the firm-configurable list of service types that engagements reference.
+- `engagements` table — the commercial/service agreement between the firm and one client for one service.
+- RLS on all three tables using the existing Kernel helper `user_has_active_firm()`; role-differentiated write gates via a security-definer helper `has_firm_role(codes text[])`.
+- Lifecycle status model with SECURITY DEFINER RPCs for controlled transitions (`activate`, `close`, `archive`) — no direct client-side `UPDATE` of `status`.
+- Engagement Reference Number (ERN) uniqueness within a firm.
+- Clients Desk becomes functional (list, minimal create); Engagements sub-surface lives under the Clients Desk answering **"What services have we agreed to provide this client?"** on the client detail page — plus a firm-wide Engagements list view.
+- Read/list/detail/create/close/archive flows.
+- Access-denied, empty, loading, and error states across every new surface.
+- Seed strategy delivered through migrations (schema + optional demo rows in DEMO firm only, behind a firm-code guard so a real firm cannot receive fixture data).
 
-## Findings
+**Explicit exclusions** (deferred, marked as future integration points in schema comments only):
+- Engagement **Periods** — a stub FK column will NOT be added yet; periods will introduce their own table in the next slice.
+- Tasks, waiting events, deliverables, checklists, playbook execution, staffing assignments.
+- Billing, pricing, fee schedules, invoices, retainers.
+- Document generation (engagement letter), e-sign, PDF export.
+- Client portal, notifications, email, timeline/audit trail UI.
+- Full client CRM (contacts, addresses, tax IDs, industry classifications, entity relationships) — only the smallest fields to identify a client.
+- Full service catalog (durations, defaults, playbook bindings, jurisdictions) — only the smallest fields to identify a service.
+- Bulk operations, imports, exports.
+- Reporting, dashboards, metrics.
+- Multi-service engagements (v1 = one service per engagement; extensible via a future `engagement_services` join).
+- Reassignment/transfer between firms (out of model by Golden Rule 1).
+- Client-portal visibility flags on engagements.
 
-### CRITICAL
+## 2. Database objects
 
-**C1. `bootstrap_first_admin` allows any authenticated user to claim any unconfigured firm.**
-- *Evidence:* `bootstrap_first_admin(_firm_code text)` is `SECURITY DEFINER`, `EXECUTE` is not revoked from `PUBLIC`/`authenticated` (unlike `handle_new_user` in migration 2), and the only guard is "the firm has zero active FIRM_ADMIN memberships". Any signed-up user can call `select public.bootstrap_first_admin('DEMO')` from the app and become admin of DEMO — or of the real live firm if seeded before its admin is provisioned.
-- *Impact:* Full cross-tenant privilege escalation on any firm that has not yet had its first admin created. Also enables a race where two concurrent callers both pass the `count = 0` check (no advisory lock, no unique partial index on "one active admin per firm").
-- *Correction (smallest):* (a) restrict eligibility to a specific server-side allowlist (either a `bootstrap_token` column on `firms`, or a `SUPABASE_SERVICE_ROLE`-only server function invoked via `createServerFn` using `supabaseAdmin`); (b) `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated` and only `GRANT EXECUTE ... TO service_role`; (c) add `SELECT ... FOR UPDATE` on the `firms` row (or a partial unique index `(firm_id) WHERE role_id = FIRM_ADMIN AND status='active'` on `firm_memberships`) to close the race. README then documents "run via SQL editor as service role" or "call the admin server function", not "run as the signed-in app user".
+### 2.1 `public.clients` — minimal reference layer
 
-### HIGH
+Columns:
+- `id uuid PK default gen_random_uuid()`
+- `firm_id uuid NOT NULL REFERENCES firms(id) ON DELETE RESTRICT`
+- `client_code text NOT NULL` — firm-generated short code (e.g. `ACME-001`); unique per firm.
+- `display_name text NOT NULL` — day-to-day label.
+- `legal_name text NOT NULL` — legal entity name.
+- `client_type text NOT NULL CHECK (client_type IN ('individual','entity'))`
+- `status text NOT NULL DEFAULT 'active' CHECK (status IN ('prospect','active','inactive','archived'))`
+- `primary_contact_email text` (nullable, no verification in v1)
+- `country_code text NOT NULL DEFAULT 'US'`
+- `notes text`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+- `updated_at timestamptz NOT NULL DEFAULT now()`
+- `created_by uuid REFERENCES auth.users(id)` — set by RPC; not user-editable
+- `updated_by uuid REFERENCES auth.users(id)`
 
-**H1. Profile INSERT/UPDATE grants violate the approved "no client writes on Kernel tables" rule for this slice.**
-- *Evidence:* `GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;` plus matching RLS policies. Slice 1 was explicitly "empty foundation, no writes."
-- *Impact:* Deviation from approved scope; users can rename themselves before member-management ships. Not exploitable across tenants (RLS scopes to `user_id = auth.uid()`), but off-spec.
-- *Correction:* Drop the `INSERT`/`UPDATE` grants and the two write policies on `profiles`. Profile row creation continues to happen through the `handle_new_user` `SECURITY DEFINER` trigger, which bypasses grants.
+Constraints/indexes:
+- `UNIQUE (firm_id, client_code)`
+- `INDEX (firm_id, status)` for the Clients Desk list
+- `INDEX (firm_id, lower(display_name))` for name search (v2 use)
 
-**H2. Route authorization is cosmetic only — direct URL access is not enforced.**
-- *Evidence:* `AppShell` filters the nav via `hasRole`, but every `/_authenticated/*` route is component-only. A Staff user typing `/administration` reaches the route; `administration.tsx` renders a "Restricted" empty state (soft gate), but `/playbooks` has no role check at all — it renders the same content to every role. There is no `beforeLoad` role gate, and Reviewer's "read-only Playbooks" is not distinguished from Manager's.
-- *Impact:* Client-side-only authorization; contradicts the audit's explicit "direct URL access, not navigation visibility" requirement. Low blast radius today because Desks are empty, but the pattern will carry into slices that render sensitive content.
-- *Correction:* Add a shared `requireRole(codes)` helper that gates in `beforeLoad` (reading session via a router context/loader) or a pathless `_authenticated/_admin` / `_authenticated/_playbooks` layout with a role check; render an "Access denied" component on mismatch. Encode Reviewer's read-only distinction as a capability flag rather than a separate policy for this slice.
+Trigger: `trg_clients_updated_at` using existing `public.set_updated_at()`.
 
-**H3. `firm_branding` "one active per firm" not enforced correctly.**
-- *Evidence:* The partial unique index exists (`WHERE status = 'active'`), which is correct. However, `SessionProvider.loadFirmContext` calls `.maybeSingle()` on `firm_branding WHERE status='active'` — if the invariant is ever violated (e.g. via service_role) the query errors and the whole session flips to `error`. Minor.
-- *Correction:* Change to `.limit(1).maybeSingle()` on an ordered query, or accept the current shape and note the invariant.
+### 2.2 `public.services` — minimal firm-configurable catalog
 
-**H4. Query errors in `loadFirmContext` are silently swallowed and misclassified.**
-- *Evidence:* `loadFirmContext` destructures `data` only, ignoring `error`, from all three parallel queries. If `firms` returns an error (network, RLS regression), `q2.data.firm` is falsy and the gate reports `firm_suspended`. Similarly `loadContext` ignores the profile query's `error`.
-- *Impact:* Real failures are shown to the user as "Firm access unavailable", which is misleading and slows debugging.
-- *Correction:* Surface errors from each sub-query and throw so the outer `useQuery` sets `error`; the gate already handles `kind: "error"`.
+Columns:
+- `id uuid PK`
+- `firm_id uuid NOT NULL REFERENCES firms(id) ON DELETE RESTRICT`
+- `service_code text NOT NULL` — e.g. `TAX-1040`, `MBK-STD`; unique per firm.
+- `name text NOT NULL`
+- `description text`
+- `category text NOT NULL CHECK (category IN ('tax','accounting','advisory','other'))`
+- `status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive','archived'))`
+- Audit fields as above.
 
-### MEDIUM
+Constraints/indexes:
+- `UNIQUE (firm_id, service_code)`
+- `INDEX (firm_id, status)`
 
-**M1. `user_active_role_id()` tie-break is not fully deterministic.**
-- *Evidence:* Orders by `is_primary_firm DESC, created_at ASC`. Two memberships created in the same millisecond, or two rows both flagged `is_primary_firm=true` (nothing prevents it — no partial unique index on `(user_id) WHERE is_primary_firm`), can flap.
-- *Correction:* Add `, id ASC` as a final tiebreak; add a partial unique index `ON firm_memberships(user_id) WHERE is_primary_firm AND status='active'` in a later slice when multi-firm is introduced.
+### 2.3 `public.engagements` — commercial agreement
 
-**M2. Access-date window (`access_start_date`/`access_end_date`) is stored but not enforced.**
-- *Evidence:* `user_has_active_firm` and `user_active_role_id` check `status='active'` only. A membership with `access_end_date < today` still grants access.
-- *Correction:* Add `AND (fm.access_end_date IS NULL OR fm.access_end_date >= current_date) AND fm.access_start_date <= current_date` to both helpers, and mirror the check in `loadContext` when picking the membership.
+Columns:
+- `id uuid PK`
+- `firm_id uuid NOT NULL REFERENCES firms(id) ON DELETE RESTRICT`
+- `client_id uuid NOT NULL REFERENCES clients(id) ON DELETE RESTRICT`
+- `service_id uuid NOT NULL REFERENCES services(id) ON DELETE RESTRICT`
+- `engagement_ref text NOT NULL` — firm-scoped stable reference (e.g. `ENG-2026-0001`).
+- `title text NOT NULL` — human-readable summary.
+- `description text`
+- `status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','on_hold','completed','archived'))`
+- `agreement_date date` — the date the commercial agreement is made (required to leave `draft`).
+- `service_start_date date` — the date service delivery begins.
+- `service_end_date date` — nullable; enforced `>= service_start_date` when both present.
+- `owner_user_id uuid REFERENCES auth.users(id)` — engagement owner (Manager or Firm Admin).
+- `close_reason text` — required when status transitions to `completed` or `archived`.
+- Audit fields.
 
-**M3. `/reset-password` behaviour for an already-signed-in user is unsafe.**
-- *Evidence:* Route sets `ready=true` on any existing session (`getSession().then(... setReady(true))`), not only `PASSWORD_RECOVERY`. An ordinary signed-in user who opens `/reset-password` can silently change their password without proving current password — indistinguishable from a recovery flow.
-- *Impact:* Session-hijack amplifier: any XSS or brief unlocked-laptop window becomes password takeover.
-- *Correction:* Gate `ready` strictly on the `PASSWORD_RECOVERY` event fired during this page load; if `getSession()` returns a session but no recovery event has fired, show "Open the reset link from your email" and redirect signed-in users to `/work`.
+Constraints/indexes:
+- `UNIQUE (firm_id, engagement_ref)`
+- Cross-firm integrity check: a validation trigger asserts `client.firm_id = engagement.firm_id` and `service.firm_id = engagement.firm_id` on INSERT/UPDATE. Prevents an authenticated user from sneaking a cross-firm client/service via a crafted `INSERT` even if RLS lets them see both (they won't, but defense in depth).
+- Date sanity trigger (see §8).
+- `INDEX (firm_id, status)`
+- `INDEX (firm_id, client_id)`
+- `INDEX (firm_id, owner_user_id)`
 
-**M4. `/reset-password` `redirectTo` is not registered.**
-- *Evidence:* `resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` })`. Works locally; in Supabase Auth settings the URL must be added to Redirect URLs. Not a code defect, but README omits it.
-- *Correction:* README addition.
+Reserved (documented in a schema comment, **not** created yet):
+```sql
+-- Future: engagement_periods(engagement_id) will attach the execution instances.
+-- Do not add a period_id column here; period-vs-engagement separation is intentional.
+```
 
-**M5. `handle_new_user` writes `display_name` from `email` local-part with no sanitization.**
-- *Evidence:* `split_part(NEW.email, '@', 1)` — profile row can carry `+tag`, dots, apostrophes. Cosmetic in v1.
-- *Correction:* Note only; revisit in profile-management slice.
+### 2.4 Status model — the only allowed transitions
 
-**M6. `roles` RLS returns only the caller's *active* role.**
-- *Evidence:* Policy `id = user_active_role_id()`. Correct for the current UI, but any future need to render "assign role" dropdowns will require a broader policy. Not a defect today.
-- *Correction:* None now; noted for later.
+```
+                +-------+ activate  +--------+ close   +-----------+
+     create --> | draft | --------> | active | ------> | completed |
+                +-------+           +--------+ pause   +-----------+
+                    |                 ^   |   <------
+                    |                 |   v put_on_hold  archive (from any non-active)
+                    |                 |   +---------+       |
+                    |                 +---| on_hold |       v
+                    |                     +---------+  +----------+
+                    +-------------- archive --------->| archived |
+                                                       +----------+
+```
 
-### LOW
+Allowed transitions (enforced by RPC, not just CHECK):
+- `draft → active` (RPC `activate_engagement`) — requires `agreement_date`, `service_start_date`, and `owner_user_id` all set.
+- `active → on_hold` (RPC `hold_engagement`)
+- `on_hold → active` (RPC `resume_engagement`)
+- `active | on_hold → completed` (RPC `complete_engagement`, requires `close_reason`)
+- `draft | on_hold | completed → archived` (RPC `archive_engagement`, requires `close_reason`)
+- No hard deletes; `archived` is the terminal soft-delete state.
 
-**L1.** README says "run … from the Supabase SQL editor authenticated as that user". Supabase's SQL editor executes as `postgres`/service role, not the signed-in app user — `auth.uid()` is NULL there, so the current `bootstrap_first_admin` guard `IF auth.uid() IS NULL THEN RAISE` will reject that path. Instructions are not executable as written. Fix alongside C1.
+## 3. Minimal Clients & Services reference layer — required, yes
 
-**L2.** `src/routes/index.tsx` uses `useEffect` + `navigate` for the auth split; a `beforeLoad` redirect is cheaper and avoids the "Loading…" flash. Minor UX.
+Rationale: an Engagement cannot exist without a Client and a Service (Golden Rule 2 — one business question requires "what service, for which client"). We ship the **smallest** viable versions above. Fuller Clients and Services modules land as their own slices later. Fields explicitly deferred are listed in §1 exclusions.
 
-**L3.** `SessionProvider` `useQuery` `staleTime: 60_000` means a role/branding change made by admin tooling is invisible for up to a minute. Acceptable for v1; consider `router.invalidate()` on relevant admin actions later.
+## 4. Tenant isolation & RLS
 
-**L4.** No index on `firm_memberships(user_id)` — the FK to `auth.users` typically gets one via the unique `(firm_id, user_id)` index (leftmost is `firm_id`, so lookups by `user_id` do a scan). Add `CREATE INDEX ON firm_memberships(user_id)`.
+All three tables:
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- `GRANT SELECT ON ... TO authenticated`
+- `GRANT ALL ON ... TO service_role`
+- **No** direct `INSERT/UPDATE/DELETE` grants to `authenticated`. All writes flow through `SECURITY DEFINER` RPCs (see §5). This mirrors Sprint B's write-lockdown discipline and is the safest posture for the first Practice Engine slice.
 
-**L5.** `firms.status` seed value is `active` for DEMO; helpers already accept `('active','setup')`. Fine, but Constitution suggests new firms begin at `setup`.
+SELECT policy on each table:
+```sql
+CREATE POLICY "read firm-scoped rows" ON public.<table>
+  FOR SELECT TO authenticated
+  USING (public.user_has_active_firm(firm_id));
+```
 
-**L6.** Generated `types.ts` is in git and will regenerate on every migration — confirm workflow does not fight edits.
+Role-differentiated **read** filtering: v1 does not filter reads by role (all firm members can read all clients/services/engagements of their firm). Row-level visibility filters (e.g. Staff sees only engagements they own) is a future enhancement flagged as a Product Owner Decision (§11).
 
-### Not Verified / Assumptions
-- No signed-in user was available; RLS checks are read-through of policies, not live probes.
-- No `bun run typecheck`/`build` was executed (audit is read-only).
-- I did not verify Supabase Auth "Redirect URLs" list; that is dashboard config outside the repo.
-- I assumed the "one live firm + DEMO" seeding intent — no production firm row exists yet in the migration.
+New helper (added in this slice, following the pattern of `user_has_active_firm`):
 
----
+```sql
+CREATE OR REPLACE FUNCTION public.has_firm_role(_codes text[])
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.firm_memberships fm
+    JOIN public.roles r ON r.id = fm.role_id
+    WHERE fm.user_id = auth.uid()
+      AND fm.status = 'active'
+      AND r.code = ANY(_codes)
+  )
+$$;
+REVOKE ALL ON FUNCTION public.has_firm_role(text[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.has_firm_role(text[]) TO authenticated;
+```
 
-## Correction Sequence (small sprints, one objective each)
+## 5. Controlled write model (per role)
 
-**Sprint A — Lock down bootstrap (fixes C1, L1).**
-- Objective: Make first-admin bootstrap non-exploitable and executable.
-- Approach: `REVOKE EXECUTE ON FUNCTION public.bootstrap_first_admin(text) FROM PUBLIC, anon, authenticated;` keep only `service_role`. Add either (i) a `bootstrap_token` column on `firms` consumed and nulled inside the function, or (ii) a TanStack `createServerFn` calling it via `supabaseAdmin` and gated by a one-shot env token. Add row lock. Rewrite README bootstrap steps.
-- Acceptance: signed-in call from browser to the RPC returns permission denied; running via SQL editor with a valid firm succeeds exactly once; second concurrent call fails deterministically.
+All writes are `SECURITY DEFINER` RPCs. Each RPC:
+1. Requires `auth.uid()`.
+2. Calls `user_has_active_firm(target_firm_id)` to reject cross-firm attempts.
+3. Calls `has_firm_role(<allowed codes>)` to gate by role.
+4. Stamps `created_by` / `updated_by`.
+5. Validates business rules (dates, references, transitions) atomically.
 
-**Sprint B — Remove Kernel client writes (fixes H1).**
-- Objective: Enforce "no client writes on Kernel tables" for this slice.
-- Approach: drop `INSERT`/`UPDATE` grants and matching policies on `profiles`; keep the auth trigger.
-- Acceptance: from the browser client, `supabase.from('profiles').update(...)` returns permission denied; sign-up still auto-creates the profile row.
+Permission matrix:
 
-**Sprint C — Real route authorization (fixes H2).**
-- Objective: Enforce role gates by URL, not by nav filtering.
-- Approach: introduce `beforeLoad` role check on `/_authenticated/administration` and `/_authenticated/playbooks` using session context resolved through router context; unauthorized users get a shared "Access denied" component.
-- Acceptance: Staff/Viewer/Client Services directly navigating to `/administration` or `/playbooks` see "Access denied", not the desk content; Firm Admin and Manager pass as approved.
+| Action | RPC | FIRM_ADMIN | MANAGER | REVIEWER | STAFF | CLIENT_SERVICES | VIEWER |
+|---|---|---|---|---|---|---|---|
+| Create client | `create_client` | ✓ | ✓ | — | — | ✓ | — |
+| Update client (non-status) | `update_client` | ✓ | ✓ | — | — | ✓ | — |
+| Archive client | `archive_client` | ✓ | ✓ | — | — | — | — |
+| Create service | `create_service` | ✓ | — | — | — | — | — |
+| Update service | `update_service` | ✓ | — | — | — | — | — |
+| Archive service | `archive_service` | ✓ | — | — | — | — | — |
+| Create engagement (draft) | `create_engagement` | ✓ | ✓ | — | — | — | — |
+| Update engagement metadata | `update_engagement` | ✓ | ✓ | — | — | — | — |
+| Activate engagement | `activate_engagement` | ✓ | ✓ | — | — | — | — |
+| Hold / Resume | `hold_engagement` / `resume_engagement` | ✓ | ✓ | — | — | — | — |
+| Complete | `complete_engagement` | ✓ | ✓ | — | — | — | — |
+| Archive | `archive_engagement` | ✓ | ✓ | — | — | — | — |
+| Read all above | (RLS SELECT) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-**Sprint D — Error surfacing in session context (fixes H4, H3).**
-- Objective: Distinguish real errors from "firm suspended".
-- Approach: propagate `error` from all sub-queries in `loadContext` / `loadFirmContext`; branding query becomes `order().limit(1).maybeSingle()`.
-- Acceptance: forcing a query error yields the `error` block, not `firm_suspended`; multiple active brandings (simulated) do not crash the session.
+Rationale for RPCs over direct RLS writes: status transitions must be atomic and rule-checked; two engagements racing to `active` need a serialization point; ownership stamping (`updated_by`) is easier to enforce in a definer function than via triggers alone; and RPCs give one clean audit surface later.
 
-**Sprint E — Access-date and determinism (fixes M1, M2).**
-- Objective: Correct membership eligibility rules.
-- Approach: extend `user_has_active_firm` and `user_active_role_id` with the date-window predicates and `id ASC` tiebreak; mirror in JS picker.
-- Acceptance: a membership past its `access_end_date` is treated as no-membership; two active memberships resolve deterministically.
+## 6. Audit fields & lifecycle
 
-**Sprint F — Password reset hardening (fixes M3, M4).**
-- Objective: Prevent silent password change from an ordinary session.
-- Approach: require observed `PASSWORD_RECOVERY` event before enabling the form; otherwise redirect signed-in users away and prompt others to reopen the email link. Document required Supabase Redirect URL entry.
-- Acceptance: opening `/reset-password` while signed in without a recovery token does not show the form; the recovery link continues to work end-to-end.
+- Every write RPC sets `created_by` on INSERT and `updated_by` on UPDATE from `auth.uid()`.
+- `updated_at` maintained by trigger.
+- No hard deletes anywhere — `archived` is terminal soft-delete. `ON DELETE RESTRICT` on FK references keeps referential integrity.
+- A dedicated `engagement_events` audit log is **out of scope** for this slice but flagged as a near-term follow-up (see §11).
 
-**Sprint G — Cleanups (L2, L4).**
-- Objective: Small quality wins.
-- Approach: convert `/` route to a `beforeLoad` redirect; add `firm_memberships(user_id)` index.
-- Acceptance: no "Loading…" flash on `/`; query plan uses the new index.
+## 7. UI & routes
 
-Stop after Sprint A–F for a "Pass" verdict; Sprint G is optional polish.
+Route tree additions (all under `_authenticated/`):
+- `clients.tsx` (existing) → becomes the **Clients Desk** list view.
+- `clients.$clientId.tsx` → client detail with "Engagements" section.
+- `clients.new.tsx` → create client form.
+- `engagements.tsx` → firm-wide Engagements list (filter by status, owner, client).
+- `engagements.$engagementId.tsx` → engagement detail with status transition actions.
+- `engagements.new.tsx` → create engagement wizard (client picker → service picker → dates/owner → title).
+- `administration.services.tsx` → services catalog (under Administration desk, FIRM_ADMIN only).
+- `administration.services.new.tsx` → create service.
+
+Desk pattern reuse:
+- Every list view uses `DeskHeader` + `DeskBody`; empty state uses existing `EmptyState`.
+- `RoleGuard` wraps every route with a non-VIEWER write concern.
+- Detail pages have three explicit states — loading (skeleton), error (via route `errorComponent`), not-found (via `notFoundComponent`).
+- Access-denied uses the existing shared component from Sprint C.
+
+Nav update:
+- Add "Engagements" between Clients and Playbooks in `AppShell` NAV. Visible to all authenticated roles.
+
+## 8. Validation rules
+
+Enforced in RPCs (with matching `CHECK` where feasible):
+- **Engagement reference uniqueness**: `UNIQUE(firm_id, engagement_ref)`; RPC generates default as `ENG-<YYYY>-<seq>` if caller omits.
+- **Client code uniqueness**: `UNIQUE(firm_id, client_code)`.
+- **Service code uniqueness**: `UNIQUE(firm_id, service_code)`.
+- **Cross-firm FK**: trigger asserts `client.firm_id = engagement.firm_id` and `service.firm_id = engagement.firm_id` on every INSERT/UPDATE (rather than a CHECK, because CHECK cannot reference other tables).
+- **Dates**: `service_end_date IS NULL OR service_end_date >= service_start_date`; `agreement_date <= service_start_date` when both set. Use a validation trigger, not a CHECK, so future business exceptions (e.g. retroactive engagements) can be encoded there.
+- **Status transitions**: only via the specific RPC; a defensive trigger rejects any direct `UPDATE ... SET status = ...` that isn't done via the definer function (checked by asserting `current_setting('finclore.transition_ok', true) = 'yes'` set inside each RPC).
+- **Referenced client/service must be non-archived** on engagement create/activate. Archiving a client or service refuses if any non-archived engagement references it (checked in the archive RPCs).
+- **Owner must be an active member of the same firm** at create/activate time.
+
+## 9. Seed / test data strategy
+
+- Migration seeds the schema only.
+- A separate, **DEMO-firm-guarded** migration inserts a small fixture: two clients, three services, three engagements in mixed statuses. Guard: `WHERE firm_code = 'DEMO'` — no fixture ever lands in a real firm even if the migration runs there.
+- No fixtures written from the browser. No page-load seeding. No public seed server function.
+- E2E test users continue to be minted only via the Sprint A `bootstrap_first_admin` service-role path; other test-firm memberships are added in a future admin UI slice.
+
+## 10. Migration order, files, tests, rollback
+
+### Migration order (one SQL migration per numbered step, applied in order)
+1. `has_firm_role` helper.
+2. `clients` table, trigger, RLS SELECT policy, grants.
+3. `services` table, trigger, RLS SELECT policy, grants.
+4. `engagements` table, triggers (updated_at, cross-firm FK, date sanity, transition-gate), RLS SELECT policy, grants.
+5. Client write RPCs (`create_client`, `update_client`, `archive_client`).
+6. Service write RPCs.
+7. Engagement write + transition RPCs.
+8. Optional demo-fixture insert migration guarded on `firm_code='DEMO'`.
+
+Each RPC migration includes its own `REVOKE ... FROM PUBLIC, anon` and `GRANT EXECUTE ... TO authenticated` and asserts firm/role/transition rules internally.
+
+### Source-file changes (planned; not implemented in this plan step)
+- `src/integrations/supabase/types.ts` — regenerated after migrations.
+- `src/lib/practice/engagements.ts` — Supabase read hooks + RPC callers (typed).
+- `src/lib/practice/clients.ts`, `src/lib/practice/services.ts` — same.
+- `src/routes/_authenticated/clients.tsx` — replaces current empty desk with list view.
+- `src/routes/_authenticated/clients.$clientId.tsx` — new.
+- `src/routes/_authenticated/clients.new.tsx` — new.
+- `src/routes/_authenticated/engagements.tsx` — new.
+- `src/routes/_authenticated/engagements.$engagementId.tsx` — new.
+- `src/routes/_authenticated/engagements.new.tsx` — new.
+- `src/routes/_authenticated/administration.services.tsx` — new.
+- `src/routes/_authenticated/administration.services.new.tsx` — new.
+- `src/components/app-shell.tsx` — add Engagements nav entry.
+- `src/components/practice/*` — small shared form/status-badge components.
+
+### Test / acceptance matrix
+| Case | Expectation |
+|---|---|
+| Manager creates engagement in own firm | Succeeds; row visible to all firm roles |
+| Manager creates engagement pointing at another firm's client | Rejected by cross-firm FK trigger |
+| Staff attempts `create_engagement` RPC | Rejected by `has_firm_role` guard |
+| Direct `UPDATE engagements SET status='active'` via PostgREST | Fails (no UPDATE grant to authenticated) |
+| Activate from `draft` without `agreement_date` | RPC raises validation error |
+| Complete without `close_reason` | RPC raises validation error |
+| Archive engagement, then attempt to activate | RPC refuses (terminal state) |
+| Archive service still referenced by active engagement | RPC refuses |
+| VIEWER opens `/engagements` | Sees list; write buttons absent (RoleGuard/UX) |
+| VIEWER hits `/engagements/new` directly | Access-denied desk |
+| Two Managers race to activate same engagement | Serialized by row lock in RPC; second call sees "already active" |
+| Firm A user queries client from Firm B by id | RLS returns 0 rows |
+| Deleting a firm cascades — engagements still exist? | RESTRICT prevents delete; matches Golden Rule 1 |
+
+### Rollback
+Each migration is reversible via a paired `DROP` migration (dropped in reverse order). Because no destructive data changes occur (only new tables and functions), a rollback is a `DROP TABLE` / `DROP FUNCTION` sequence and does not risk existing Kernel data. Demo-fixture migration is trivially reversible with a `DELETE ... WHERE firm_code='DEMO'` guarded reversal.
+
+## 11. Decisions requiring product-owner approval
+
+1. **Row-level read filtering by role.** v1 treats all firm members as full readers of all clients/services/engagements. Future: should Staff see only engagements they own? Should Client Services be limited to a subset? Deferred by default; needs sign-off.
+2. **Multi-service engagements.** v1 = one service per engagement. Confirm this is acceptable before enabling; if multi-service is required day-one, an `engagement_services` join table changes the schema.
+3. **Engagement reference format & generation.** Proposed `ENG-<YYYY>-<seq>` per firm; alternative is firm-configurable prefix + counter. Confirm.
+4. **Owner semantics.** Owner = Manager or Firm Admin. Should Reviewer be an eligible owner in v1? Proposed: no.
+5. **`draft` visibility.** Should drafts be visible to VIEWER / STAFF, or only to authors and Managers? Proposed: visible to all firm members (simpler, no cross-role hiding); alternative narrows draft visibility.
+6. **Client status "prospect" vs "active" gating.** Should a `prospect` client be eligible for a non-draft engagement? Proposed: no — activation requires `client.status = 'active'`.
+7. **Audit log**. Ship the `engagement_events` audit trail table in this slice, or defer to slice 2 alongside Periods? Proposed: defer.
+8. **Services live under Administration, not their own top-level Desk.** Confirm.
+
+## 12. Recommended build sprint
+
+Given the breadth, a single sprint for **all** of the above is too large. Recommended split into two implementation sprints under Milestone 2 · Slice 1, each independently reviewable:
+
+### Sprint E1 — Reference layer + read-only Engagements
+- Migrations 1–4 (helper, clients, services, engagements) plus SELECT policies and grants.
+- Client + service **create/update/archive** RPCs (safe to ship — no engagement lifecycle yet).
+- Read-only surfaces: Clients Desk list, Client detail, Services catalog under Administration, Engagements list (empty until seed / until Sprint E2 creates any).
+- Demo-firm fixture migration.
+- **Complexity**: Medium. **Est. credits**: ~40–60% of a typical DB-plus-UI slice — mostly schema and list UI, no wizard.
+
+### Sprint E2 — Engagement writes & lifecycle
+- Engagement create wizard, detail page with transition actions.
+- All engagement RPCs (`create/update/activate/hold/resume/complete/archive`).
+- Direct-UPDATE lockdown trigger.
+- Full test matrix (§10) executed.
+- **Complexity**: Medium-High (state machine + validation + wizard UX). **Est. credits**: ~60–80% of a typical slice.
+
+If the product owner prefers a single sprint, name it **Sprint E** and expect roughly 1.4–1.8× the size of Sprint C+D combined. The two-sprint split is strongly recommended for reviewability and to keep Sprint E1's schema stable before wiring the state machine.
+
+### Recommendation
+Approve **Sprint E1** first, defer Sprint E2 until E1 is merged and the "what services have we agreed to provide this client?" question is visibly answered on-screen with real firm data. This keeps each sprint aligned to one business question and one reviewable slice, per the Constitution.
