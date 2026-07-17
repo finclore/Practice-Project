@@ -14,6 +14,132 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          client_code: string
+          created_at: string
+          created_by: string | null
+          display_name: string
+          firm_id: string
+          id: string
+          legal_name: string | null
+          notes: string | null
+          primary_contact_email: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          client_code: string
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          firm_id: string
+          id?: string
+          legal_name?: string | null
+          notes?: string | null
+          primary_contact_email?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          client_code?: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          firm_id?: string
+          id?: string
+          legal_name?: string | null
+          notes?: string | null
+          primary_contact_email?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagements: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          engagement_reference: string
+          firm_id: string
+          id: string
+          name: string
+          owner_user_id: string | null
+          service_id: string
+          start_date: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          engagement_reference: string
+          firm_id: string
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          service_id: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          engagement_reference?: string
+          firm_id?: string
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          service_id?: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagements_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       firm_branding: {
         Row: {
           accent_color_hex: string | null
@@ -259,14 +385,108 @@ export type Database = {
         }
         Relationships: []
       }
+      services: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          firm_id: string
+          id: string
+          name: string
+          service_code: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          firm_id: string
+          id?: string
+          name: string
+          service_code: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          firm_id?: string
+          id?: string
+          name?: string
+          service_code?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      archive_client: { Args: { _client_id: string }; Returns: undefined }
+      archive_service: { Args: { _service_id: string }; Returns: undefined }
       bootstrap_first_admin: {
         Args: { _firm_code: string; _user_email: string }
         Returns: string
+      }
+      create_client: {
+        Args: {
+          _client_code: string
+          _display_name: string
+          _firm_id: string
+          _legal_name?: string
+          _notes?: string
+          _primary_contact_email?: string
+          _status?: string
+        }
+        Returns: string
+      }
+      create_service: {
+        Args: {
+          _description?: string
+          _firm_id: string
+          _name: string
+          _service_code: string
+        }
+        Returns: string
+      }
+      has_firm_role: {
+        Args: { _firm_id: string; _role_codes: string[] }
+        Returns: boolean
+      }
+      update_client: {
+        Args: {
+          _client_id: string
+          _display_name?: string
+          _legal_name?: string
+          _notes?: string
+          _primary_contact_email?: string
+          _status?: string
+        }
+        Returns: undefined
+      }
+      update_service: {
+        Args: {
+          _description?: string
+          _name?: string
+          _service_id: string
+          _status?: string
+        }
+        Returns: undefined
       }
       user_active_role_id: { Args: never; Returns: string }
       user_has_active_firm: { Args: { _firm_id: string }; Returns: boolean }
