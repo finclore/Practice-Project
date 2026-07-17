@@ -264,7 +264,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      bootstrap_first_admin: { Args: { _firm_code: string }; Returns: string }
+      bootstrap_first_admin: {
+        Args: { _firm_code: string; _user_email: string }
+        Returns: string
+      }
       user_active_role_id: { Args: never; Returns: string }
       user_has_active_firm: { Args: { _firm_id: string }; Returns: boolean }
     }
