@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { Briefcase, Users, BookOpen, Wrench, ShieldCheck, LogOut } from "lucide-react";
+import { Briefcase, Users, BookOpen, Wrench, ShieldCheck, LogOut, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useReadySession, hasRole, type RoleCode } from "@/lib/session-context";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ type NavItem = {
 const NAV: NavItem[] = [
   { to: "/work", label: "Work", icon: Briefcase },
   { to: "/clients", label: "Clients", icon: Users },
+  { to: "/engagements", label: "Engagements", icon: FileText },
   {
     to: "/playbooks",
     label: "Playbooks",

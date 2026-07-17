@@ -33,7 +33,19 @@ function AdministrationDesk() {
 
   return (
     <>
-      <DeskHeader title="Administration Desk" question="How is the firm configured?" />
+      <DeskHeader
+        title="Administration Desk"
+        question="How is the firm configured?"
+        actions={
+          <Link
+            to="/administration/services"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Services catalog →
+          </Link>
+        }
+      />
+
       <DeskBody>
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
