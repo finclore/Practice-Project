@@ -60,11 +60,12 @@ export function useReadySession() {
 }
 
 async function loadContext(userId: string) {
-  const { data: profile } = await supabase
+  const { data: profile, error: pErr } = await supabase
     .from("profiles")
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
+  if (pErr) throw pErr;
 
   const { data: memberships, error: mErr } = await supabase
     .from("firm_memberships")
@@ -89,18 +90,30 @@ async function loadContext(userId: string) {
 }
 
 async function loadFirmContext(firmId: string, roleId: string) {
-  const [{ data: firm }, { data: role }, { data: branding }] = await Promise.all([
+  const [firmRes, roleRes, brandingRes] = await Promise.all([
     supabase.from("firms").select("*").eq("id", firmId).maybeSingle(),
     supabase.from("roles").select("*").eq("id", roleId).maybeSingle(),
+    // Defensive .limit(1) + ordering guards against a hypothetical violation
+    // of the "one active branding per firm" partial-unique-index invariant
+    // (e.g. via service_role). The invariant itself is unchanged.
     supabase
       .from("firm_branding")
       .select("*")
       .eq("firm_id", firmId)
       .eq("status", "active")
+      .order("version_number", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
-  return { firm, role, branding };
+
+  if (firmRes.error) throw firmRes.error;
+  if (roleRes.error) throw roleRes.error;
+  if (brandingRes.error) throw brandingRes.error;
+
+  return { firm: firmRes.data, role: roleRes.data, branding: brandingRes.data };
 }
+
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -144,8 +157,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     value = { kind: "unauthenticated" };
   } else if (q.isLoading || (picked && q2.isLoading)) {
     value = { kind: "loading" };
-  } else if (q.error) {
-    value = { kind: "error", message: (q.error as Error).message };
+  } else if (q.error || q2.error) {
+    const err = (q.error ?? q2.error) as Error;
+    value = { kind: "error", message: err.message };
+
   } else if (!q.data?.picked) {
     value = {
       kind: "no_membership",
