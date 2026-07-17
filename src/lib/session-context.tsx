@@ -157,8 +157,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     value = { kind: "unauthenticated" };
   } else if (q.isLoading || (picked && q2.isLoading)) {
     value = { kind: "loading" };
-  } else if (q.error) {
-    value = { kind: "error", message: (q.error as Error).message };
+  } else if (q.error || q2.error) {
+    const err = (q.error ?? q2.error) as Error;
+    value = { kind: "error", message: err.message };
+
   } else if (!q.data?.picked) {
     value = {
       kind: "no_membership",
