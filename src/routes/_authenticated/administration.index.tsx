@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { DeskBody, DeskHeader } from "@/components/desk";
 import { RoleGuard } from "@/components/role-guard";
 import { useReadySession } from "@/lib/session-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const Route = createFileRoute("/_authenticated/administration")({
+export const Route = createFileRoute("/_authenticated/administration/")({
   head: () => ({ meta: [{ title: "Administration · Finclore Practice" }] }),
   component: AdministrationRoute,
 });

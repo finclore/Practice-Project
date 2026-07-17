@@ -18,7 +18,7 @@ import { Route as AuthenticatedToolsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedPlaybooksRouteImport } from './routes/_authenticated/playbooks'
 import { Route as AuthenticatedEngagementsRouteImport } from './routes/_authenticated/engagements'
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
-import { Route as AuthenticatedAdministrationRouteImport } from './routes/_authenticated/administration'
+import { Route as AuthenticatedAdministrationIndexRouteImport } from './routes/_authenticated/administration.index'
 import { Route as AuthenticatedClientsClientIdRouteImport } from './routes/_authenticated/clients.$clientId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -66,10 +66,10 @@ const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
   path: '/clients',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAdministrationRoute =
-  AuthenticatedAdministrationRouteImport.update({
-    id: '/administration',
-    path: '/administration',
+const AuthenticatedAdministrationIndexRoute =
+  AuthenticatedAdministrationIndexRouteImport.update({
+    id: '/administration/',
+    path: '/administration/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedClientsClientIdRoute =
@@ -83,25 +83,25 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/administration': typeof AuthenticatedAdministrationRoute
   '/clients': typeof AuthenticatedClientsRouteWithChildren
   '/engagements': typeof AuthenticatedEngagementsRoute
   '/playbooks': typeof AuthenticatedPlaybooksRoute
   '/tools': typeof AuthenticatedToolsRoute
   '/work': typeof AuthenticatedWorkRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/administration/': typeof AuthenticatedAdministrationIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/administration': typeof AuthenticatedAdministrationRoute
   '/clients': typeof AuthenticatedClientsRouteWithChildren
   '/engagements': typeof AuthenticatedEngagementsRoute
   '/playbooks': typeof AuthenticatedPlaybooksRoute
   '/tools': typeof AuthenticatedToolsRoute
   '/work': typeof AuthenticatedWorkRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/administration': typeof AuthenticatedAdministrationIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,13 +109,13 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
   '/_authenticated/clients': typeof AuthenticatedClientsRouteWithChildren
   '/_authenticated/engagements': typeof AuthenticatedEngagementsRoute
   '/_authenticated/playbooks': typeof AuthenticatedPlaybooksRoute
   '/_authenticated/tools': typeof AuthenticatedToolsRoute
   '/_authenticated/work': typeof AuthenticatedWorkRoute
   '/_authenticated/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/_authenticated/administration/': typeof AuthenticatedAdministrationIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -123,38 +123,38 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
-    | '/administration'
     | '/clients'
     | '/engagements'
     | '/playbooks'
     | '/tools'
     | '/work'
     | '/clients/$clientId'
+    | '/administration/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/reset-password'
-    | '/administration'
     | '/clients'
     | '/engagements'
     | '/playbooks'
     | '/tools'
     | '/work'
     | '/clients/$clientId'
+    | '/administration'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
-    | '/_authenticated/administration'
     | '/_authenticated/clients'
     | '/_authenticated/engagements'
     | '/_authenticated/playbooks'
     | '/_authenticated/tools'
     | '/_authenticated/work'
     | '/_authenticated/clients/$clientId'
+    | '/_authenticated/administration/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -229,11 +229,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/administration': {
-      id: '/_authenticated/administration'
+    '/_authenticated/administration/': {
+      id: '/_authenticated/administration/'
       path: '/administration'
-      fullPath: '/administration'
-      preLoaderRoute: typeof AuthenticatedAdministrationRouteImport
+      fullPath: '/administration/'
+      preLoaderRoute: typeof AuthenticatedAdministrationIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/clients/$clientId': {
@@ -258,21 +258,21 @@ const AuthenticatedClientsRouteWithChildren =
   AuthenticatedClientsRoute._addFileChildren(AuthenticatedClientsRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdministrationRoute: typeof AuthenticatedAdministrationRoute
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRouteWithChildren
   AuthenticatedEngagementsRoute: typeof AuthenticatedEngagementsRoute
   AuthenticatedPlaybooksRoute: typeof AuthenticatedPlaybooksRoute
   AuthenticatedToolsRoute: typeof AuthenticatedToolsRoute
   AuthenticatedWorkRoute: typeof AuthenticatedWorkRoute
+  AuthenticatedAdministrationIndexRoute: typeof AuthenticatedAdministrationIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdministrationRoute: AuthenticatedAdministrationRoute,
   AuthenticatedClientsRoute: AuthenticatedClientsRouteWithChildren,
   AuthenticatedEngagementsRoute: AuthenticatedEngagementsRoute,
   AuthenticatedPlaybooksRoute: AuthenticatedPlaybooksRoute,
   AuthenticatedToolsRoute: AuthenticatedToolsRoute,
   AuthenticatedWorkRoute: AuthenticatedWorkRoute,
+  AuthenticatedAdministrationIndexRoute: AuthenticatedAdministrationIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
